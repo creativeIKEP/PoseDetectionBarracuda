@@ -1,19 +1,14 @@
 #pragma kernel PostProcess2
 
-#define IOU_THRESHOLD 0.3
+#include "Common.cginc"
+
+// MAX_DETECTION must be matched with "PoseDetecter.cs"
 #define MAX_DETECTION 64
 
-struct PoseDetection
-{
-    float score;
-    float2 center;
-    float2 extent;
-    float2 keyPoints[4];
-};
-
-ConsumeStructuredBuffer<PoseDetection> inputBuffer;
-ByteAddressBuffer inputCountBuffer;
-AppendStructuredBuffer<PoseDetection> outputBuffer;
+float _iouThreshold;
+ConsumeStructuredBuffer<PoseDetection> _inputBuffer;
+ByteAddressBuffer _inputCountBuffer;
+AppendStructuredBuffer<PoseDetection> _output;
 groupshared PoseDetection inputArray[MAX_DETECTION];
 
 
@@ -21,10 +16,10 @@ PoseDetection AddPoseDetection(in PoseDetection pd1, in PoseDetection pd2){
     PoseDetection result;
     result.center = pd1.center + pd2.center;
     result.extent = pd1.extent + pd2.extent;
-    result.keyPoints[0] = pd1.keyPoints[0] + pd2.keyPoints[0];
-    result.keyPoints[1] = pd1.keyPoints[1] + pd2.keyPoints[1];
-    result.keyPoints[2] = pd1.keyPoints[2] + pd2.keyPoints[2];
-    result.keyPoints[3] = pd1.keyPoints[3] + pd2.keyPoints[3];
+    [unroll]
+    for(uint i=0; i<4; i++){
+        result.keyPoints[i] = pd1.keyPoints[i] + pd2.keyPoints[i];
+    }
     return result;
 }
 
@@ -32,13 +27,15 @@ PoseDetection MultipleScore(in PoseDetection pd, float score){
     PoseDetection result;
     result.center = pd.center * score;
     result.extent = pd.extent * score;
-    result.keyPoints[0] = pd.keyPoints[0] * score;
-    result.keyPoints[1] = pd.keyPoints[1] * score;
-    result.keyPoints[2] = pd.keyPoints[2] * score;
-    result.keyPoints[3] = pd.keyPoints[3] * score;
+    
+    [unroll]
+    for(uint i=0; i<4; i++){
+        result.keyPoints[i] = pd.keyPoints[i] * score;
+    }
     return result;
 }
 
+// Caluculate IOU between pd1's box and pd2's box.
 float Iou(in PoseDetection pd1, in PoseDetection pd2)
 {
     float pd1Area = pd1.extent.x * pd1.extent.y;
@@ -54,11 +51,11 @@ float Iou(in PoseDetection pd1, in PoseDetection pd2)
 [numthreads(1, 1, 1)]
 void PostProcess2(uint3 id : SV_DispatchThreadID)
 {
-    uint inputCount = inputCountBuffer.Load(0);
+    uint inputCount = _inputCountBuffer.Load(0);
     if(inputCount == 0) return;
 
     for(uint i = 0; i < inputCount; i++){
-        inputArray[i] = inputBuffer.Consume();
+        inputArray[i] = _inputBuffer.Consume();
     }
 
     for (i = 0; i < inputCount - 1; i++)
@@ -73,7 +70,7 @@ void PostProcess2(uint3 id : SV_DispatchThreadID)
         {
             if (inputArray[j].score == 0) continue;
 
-            if (Iou(inputArray[i], inputArray[j]) < IOU_THRESHOLD) continue;
+            if (Iou(inputArray[i], inputArray[j]) < _iouThreshold) continue;
 
             float score = inputArray[j].score;
             pdAcc = AddPoseDetection(pdAcc, MultipleScore(inputArray[j], score));
@@ -85,6 +82,6 @@ void PostProcess2(uint3 id : SV_DispatchThreadID)
 
         PoseDetection resultPd = MultipleScore(pdAcc, 1/score_Acc);
         resultPd.score = maxScore;
-        outputBuffer.Append(resultPd);
+        _output.Append(resultPd);
     }
 }

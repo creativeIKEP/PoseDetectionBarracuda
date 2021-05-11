@@ -4,38 +4,62 @@ using Unity.Barracuda;
 namespace Mediapipe.PoseDetection{
     public class PoseDetecter: System.IDisposable
     {
+        #region public variable
+        // Pose detection result buffer.
+        public ComputeBuffer outputBuffer;
+        // Pose detection result count buffer.
+        public ComputeBuffer countBuffer;
+        #endregion
+
+        #region constant number 
         // Input image size defined by pose detection network model.
         const int IMAGE_SIZE = 128;
+        // MAX_DETECTION must be matched with "Postprocess2.compute"
         const int MAX_DETECTION = 64;
+        #endregion
+
+        #region private variable
         IWorker woker;
         Model model;
         ComputeShader preProcessCS;
         ComputeShader postProcessCS;
         ComputeShader postProcess2CS;
         ComputeBuffer networkInputBuffer;
-        public ComputeBuffer countBuffer;
-        public ComputeBuffer outputBuffer;
-        public ComputeBuffer output2Buffer;
+        ComputeBuffer postProcessBuffer;
+        #endregion
 
+        #region public method
         public PoseDetecter(PoseDetectionResource resource){
             preProcessCS = resource.preProcessCS;
             postProcessCS = resource.postProcessCS;
             postProcess2CS = resource.postProcess2CS;
+            
+            outputBuffer = new ComputeBuffer(MAX_DETECTION, PoseDetection.SIZE, ComputeBufferType.Append);
+            countBuffer = new ComputeBuffer(1, sizeof(uint), ComputeBufferType.Raw);
+            networkInputBuffer = new ComputeBuffer(IMAGE_SIZE * IMAGE_SIZE * 3, sizeof(float));
+            postProcessBuffer = new ComputeBuffer(MAX_DETECTION, PoseDetection.SIZE, ComputeBufferType.Append);
+
+            // Prepare neural network model.
             model = ModelLoader.Load(resource.model);
             woker = model.CreateWorker();
-            networkInputBuffer = new ComputeBuffer(IMAGE_SIZE * IMAGE_SIZE * 3, sizeof(float));
-            countBuffer = new ComputeBuffer(1, sizeof(uint), ComputeBufferType.Raw);
-            outputBuffer = new ComputeBuffer(MAX_DETECTION, PoseDetection.SIZE, ComputeBufferType.Append);
-            output2Buffer = new ComputeBuffer(MAX_DETECTION, PoseDetection.SIZE, ComputeBufferType.Append);
         }
 
-        public void ProcessImage(Texture inputTexture){
+        public void Dispose(){
+            outputBuffer.Dispose();
+            countBuffer.Dispose();
+            networkInputBuffer.Dispose();
+            postProcessBuffer.Dispose();
+            woker.Dispose();
+        }
+
+        public void ProcessImage(Texture inputTexture, float poseThreshold = 0.75f, float iouThreshold = 0.3f){
+            // Reset append type buffer datas of previous frame. 
+            postProcessBuffer.SetCounterValue(0);
             outputBuffer.SetCounterValue(0);
-            output2Buffer.SetCounterValue(0);
 
             // Resize `inputTexture` texture to network model image size.
-            preProcessCS.SetTexture(0, "inputTexture", inputTexture);
-            preProcessCS.SetBuffer(0, "networkInputBuffer", networkInputBuffer);
+            preProcessCS.SetTexture(0, "_inputTexture", inputTexture);
+            preProcessCS.SetBuffer(0, "_output", networkInputBuffer);
             preProcessCS.Dispatch(0, IMAGE_SIZE / 8, IMAGE_SIZE / 8, 1);
 
             //Execute neural network model.
@@ -45,48 +69,49 @@ namespace Mediapipe.PoseDetection{
 
             //Get neural network model raw output as RenderTexture;
             var scores = CopyOutputToTempRT("classificators", 1, 896);
-            var boxes = CopyOutputToTempRT("regressors", 12, 896);
+            var boxs = CopyOutputToTempRT("regressors", 12, 896);
 
-            postProcessCS.SetFloat("IMAGE_SIZE", IMAGE_SIZE);
-            postProcessCS.SetTexture(0, "scores", scores);
-            postProcessCS.SetTexture(0, "boxes", boxes);
-            postProcessCS.SetBuffer(0, "outputBuffer", outputBuffer);
+            // Parse raw result datas for above values of vectors.
+            postProcessCS.SetFloat("_threshold", poseThreshold);
+            postProcessCS.SetTexture(0, "_scores", scores);
+            postProcessCS.SetTexture(0, "_boxs", boxs);
+            postProcessCS.SetBuffer(0, "_output", postProcessBuffer);
             postProcessCS.Dispatch(0, 1, 1, 1);
 
-            postProcessCS.SetTexture(1, "scores", scores);
-            postProcessCS.SetTexture(1, "boxes", boxes);
-            postProcessCS.SetBuffer(1, "outputBuffer", outputBuffer);
+            // Parse raw result datas for behind values of vectors.
+            postProcessCS.SetTexture(1, "_scores", scores);
+            postProcessCS.SetTexture(1, "_boxs", boxs);
+            postProcessCS.SetBuffer(1, "_output", postProcessBuffer);
             postProcessCS.Dispatch(1, 1, 1, 1);
 
             RenderTexture.ReleaseTemporary(scores);
-            RenderTexture.ReleaseTemporary(boxes);
-            ComputeBuffer.CopyCount(outputBuffer, countBuffer, 0);
+            RenderTexture.ReleaseTemporary(boxs);
+            ComputeBuffer.CopyCount(postProcessBuffer, countBuffer, 0);
             
-            postProcess2CS.SetBuffer(0, "inputBuffer", outputBuffer);
-            postProcess2CS.SetBuffer(0, "inputCountBuffer", countBuffer);
-            postProcess2CS.SetBuffer(0, "outputBuffer", output2Buffer);
+            // Get final results of pose deteciton.
+            postProcess2CS.SetFloat("_iouThreshold", iouThreshold);
+            postProcess2CS.SetBuffer(0, "_inputBuffer", postProcessBuffer);
+            postProcess2CS.SetBuffer(0, "_inputCountBuffer", countBuffer);
+            postProcess2CS.SetBuffer(0, "_output", outputBuffer);
             postProcess2CS.Dispatch(0, 1, 1, 1);
 
-            ComputeBuffer.CopyCount(output2Buffer, countBuffer, 0);
+            // Set pose detection results count.
+            ComputeBuffer.CopyCount(outputBuffer, countBuffer, 0);
         }
+        #endregion
 
-        public void Dispose(){
-            networkInputBuffer.Dispose();
-            countBuffer.Dispose();
-            outputBuffer.Dispose();
-            output2Buffer.Dispose();
-            woker.Dispose();
-        }
-
+        #region private method
+        // Exchange network output tensor to RenderTexture.
         RenderTexture CopyOutputToTempRT(string name, int w, int h)
         {
-            var fmt = RenderTextureFormat.RFloat;
+            var rtFormat = RenderTextureFormat.RFloat;
             var shape = new TensorShape(1, h, w, 1);
-            var rt = RenderTexture.GetTemporary(w, h, 0, fmt);
+            var rt = RenderTexture.GetTemporary(w, h, 0, rtFormat);
             var tensor = woker.PeekOutput(name).Reshape(shape);
             tensor.ToRenderTexture(rt);
             tensor.Dispose();
             return rt;
         }
+        #endregion
     }
 }
