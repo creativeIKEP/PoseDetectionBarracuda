@@ -1,0 +1,90 @@
+#pragma kernel PostProcess2
+
+#define IOU_THRESHOLD 0.3
+#define MAX_DETECTION 64
+
+struct PoseDetection
+{
+    float score;
+    float2 center;
+    float2 extent;
+    float2 keyPoints[4];
+};
+
+ConsumeStructuredBuffer<PoseDetection> inputBuffer;
+ByteAddressBuffer inputCountBuffer;
+AppendStructuredBuffer<PoseDetection> outputBuffer;
+groupshared PoseDetection inputArray[MAX_DETECTION];
+
+
+PoseDetection AddPoseDetection(in PoseDetection pd1, in PoseDetection pd2){
+    PoseDetection result;
+    result.center = pd1.center + pd2.center;
+    result.extent = pd1.extent + pd2.extent;
+    result.keyPoints[0] = pd1.keyPoints[0] + pd2.keyPoints[0];
+    result.keyPoints[1] = pd1.keyPoints[1] + pd2.keyPoints[1];
+    result.keyPoints[2] = pd1.keyPoints[2] + pd2.keyPoints[2];
+    result.keyPoints[3] = pd1.keyPoints[3] + pd2.keyPoints[3];
+    return result;
+}
+
+PoseDetection MultipleScore(in PoseDetection pd, float score){
+    PoseDetection result;
+    result.center = pd.center * score;
+    result.extent = pd.extent * score;
+    result.keyPoints[0] = pd.keyPoints[0] * score;
+    result.keyPoints[1] = pd.keyPoints[1] * score;
+    result.keyPoints[2] = pd.keyPoints[2] * score;
+    result.keyPoints[3] = pd.keyPoints[3] * score;
+    return result;
+}
+
+float Iou(in PoseDetection pd1, in PoseDetection pd2)
+{
+    float pd1Area = pd1.extent.x * pd1.extent.y;
+    float pd2Area = pd2.extent.x * pd2.extent.y;
+
+    float2 p0 = max(pd1.center - pd1.extent / 2, pd2.center - pd2.extent / 2);
+    float2 p1 = min(pd1.center + pd1.extent / 2, pd2.center + pd2.extent / 2);
+    float innerArea = max(0, p1.x - p0.x) * max(0, p1.y - p0.y);
+
+    return innerArea / (pd1Area + pd2Area - innerArea);
+}
+
+[numthreads(1, 1, 1)]
+void PostProcess2(uint3 id : SV_DispatchThreadID)
+{
+    uint inputCount = inputCountBuffer.Load(0);
+    if(inputCount == 0) return;
+
+    for(uint i = 0; i < inputCount; i++){
+        inputArray[i] = inputBuffer.Consume();
+    }
+
+    for (i = 0; i < inputCount - 1; i++)
+    {
+        if (inputArray[i].score == 0) continue;
+
+        float maxScore = inputArray[i].score;
+        PoseDetection pdAcc = MultipleScore(inputArray[i], maxScore);
+        float score_Acc = maxScore;
+
+        for (uint j = i + 1; j < inputCount; j++)
+        {
+            if (inputArray[j].score == 0) continue;
+
+            if (Iou(inputArray[i], inputArray[j]) < IOU_THRESHOLD) continue;
+
+            float score = inputArray[j].score;
+            pdAcc = AddPoseDetection(pdAcc, MultipleScore(inputArray[j], score));
+            score_Acc += score;
+            maxScore = max(maxScore, score);
+
+            inputArray[j].score = 0;
+        }
+
+        PoseDetection resultPd = MultipleScore(pdAcc, 1/score_Acc);
+        resultPd.score = maxScore;
+        outputBuffer.Append(resultPd);
+    }
+}

@@ -36,6 +36,14 @@
         "com.unity.modules.imgui": "1.0.0"
       }
     },
+    "jp.ikep.mediapipe.posedetection": {
+      "version": "file:PoseDetectionBarracuda",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.barracuda": "2.0.0-pre.3"
+      }
+    },
     "com.unity.modules.ai": {
       "version": "1.0.0",
       "depth": 0,

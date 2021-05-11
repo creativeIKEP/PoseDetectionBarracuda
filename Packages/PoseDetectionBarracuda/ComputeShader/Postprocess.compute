@@ -1,0 +1,89 @@
+﻿#pragma kernel PostprocessFor8Map
+#pragma kernel PostprocessFor16Map
+
+float IMAGE_SIZE;
+
+struct PoseDetection
+{
+    float score;
+    float2 center;
+    float2 extent;
+    float2 keyPoints[4];
+};
+
+Texture2D<float> scores;
+Texture2D<float> boxes;
+AppendStructuredBuffer<PoseDetection> outputBuffer;
+
+
+float Sigmoid(float x){
+    return 1.0 / (1.0 + exp(-x));
+}
+
+PoseDetection ExtractPoseDetection(uint index, float2 anchor){
+    PoseDetection pd;
+    pd.score = Sigmoid(scores[uint2(0, index)]);
+
+    float scale = 1 / IMAGE_SIZE;
+    /*
+    [unroll] for(uint i=0; i<3; i++){
+        float x = boxes[index, i * 4] * scale;
+        float y = 1.0 - boxes[index, i * 4 + 1] * scale;
+        float w = boxes[index, i * 4 + 2] * scale;
+        float h = boxes[index, i * 4 + 3] * scale;
+        pd.boxs[i] = float4(x, y, w, h);
+    }
+    */
+
+        
+    uint i=0;
+    float x = boxes[uint2(i*4, index)] * scale;
+    float y = boxes[uint2(i*4 + 1, index)] * scale;
+    float w = boxes[uint2(i*4 + 2, index)] * scale;
+    float h = boxes[uint2(i*4 + 3, index)] * scale;
+    pd.center = anchor + float2(x, y);
+    pd.extent = float2(w, h);
+    i=1;
+    x = boxes[uint2(i*4, index)] * scale;
+    y = boxes[uint2(i*4 + 1, index)] * scale;
+    w = boxes[uint2(i*4 + 2, index)] * scale;
+    h = boxes[uint2(i*4 + 3, index)] * scale;
+    pd.keyPoints[0] = anchor + float2(x, y);
+    pd.keyPoints[1] = anchor + float2(w, h);
+    i=2;
+    x = boxes[uint2(i*4, index)] * scale;
+    y = boxes[uint2(i*4 + 1, index)] * scale;
+    w = boxes[uint2(i*4 + 2, index)] * scale;
+    h = boxes[uint2(i*4 + 3, index)] * scale;
+    pd.keyPoints[2] = anchor + float2(x, y);
+    pd.keyPoints[3] = anchor + float2(w, h);
+        
+    return pd;
+}
+
+[numthreads(8, 8, 1)]
+void PostprocessFor8Map(uint2 id : SV_DispatchThreadID)
+{
+    uint index_In0chMap = (id.y * 8 + id.x) * 6;
+    float2 anchor = (8 - 0.5 - id) / 8;
+    for(uint i=0; i<6; i++){
+        uint index = index_In0chMap + i;
+        PoseDetection pd = ExtractPoseDetection(index, anchor);
+
+        if (pd.score > 0.75)outputBuffer.Append(pd);
+    }
+}
+
+[numthreads(16, 16, 1)]
+void PostprocessFor16Map(uint2 id : SV_DispatchThreadID)
+{
+    PoseDetection pd;
+    uint index_In0chMap = (id.y * 16 + id.x) * 2 + 384;
+    float2 anchor = (16 - 0.5 - id) / 16;
+    for(uint i=0; i<2; i++){
+        uint index = index_In0chMap + i;
+        PoseDetection pd = ExtractPoseDetection(index, anchor);
+
+        if (pd.score > 0.75)outputBuffer.Append(pd);
+    }
+}
