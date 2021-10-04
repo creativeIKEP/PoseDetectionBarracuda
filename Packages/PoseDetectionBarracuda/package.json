@@ -17,5 +17,7 @@
     ],
     "dependencies": {
         "com.unity.barracuda": "2.0.0-pre.3"
-    }
+    },
+    "license": "Apache-2.0",
+    "repository": "github:creativeIKEP/PoseDetectionBarracuda"
 }
