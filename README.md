@@ -1,5 +1,5 @@
 # PoseDetectionBarracuda
-![demo](/screenshot/demo.png)
+![demo](https://user-images.githubusercontent.com/34697515/148678516-9b608be0-40a0-4c01-98da-c1c22d021cba.png)
 
 PoseDetectionBarracuda is a human pose detecter that runs the [Mediapipe Pose](https://google.github.io/mediapipe/solutions/pose) Detection neural network model on the [Unity Barracuda](https://docs.unity3d.com/Packages/com.unity.barracuda@latest).
 
