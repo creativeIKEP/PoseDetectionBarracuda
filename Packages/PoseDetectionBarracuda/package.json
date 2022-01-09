@@ -6,7 +6,7 @@
     "name": "jp.ikep.mediapipe.posedetection",
     "displayName": "PoseDetectionBarracuda",
     "description": "Mediapipe pose detection for Unity Barracuda",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "unity": "2020.3",
     "unityRelease": "6f1",
     "keywords": [

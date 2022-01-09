@@ -1,5 +1,5 @@
 # PoseDetectionBarracuda
-![demo](/screenshot/demo.png)
+![demo](https://user-images.githubusercontent.com/34697515/148678516-9b608be0-40a0-4c01-98da-c1c22d021cba.png)
 
 PoseDetectionBarracuda is a human pose detecter that runs the [Mediapipe Pose](https://google.github.io/mediapipe/solutions/pose) Detection neural network model on the [Unity Barracuda](https://docs.unity3d.com/Packages/com.unity.barracuda@latest).
 
@@ -21,7 +21,7 @@ To the `scopedRegistries` section:
 ```
 To the `dependencies` section:
 ```
-"jp.ikep.mediapipe.posedetection": "1.0.0"
+"jp.ikep.mediapipe.posedetection": "1.0.1"
 ```
 Finally, the manifest file looks like below:
 ```
@@ -34,7 +34,7 @@ Finally, the manifest file looks like below:
         }
     ],
     "dependencies": {
-        "jp.ikep.mediapipe.posedetection": "1.0.0",
+        "jp.ikep.mediapipe.posedetection": "1.0.1",
         ...
     }
 }
@@ -43,7 +43,7 @@ Finally, the manifest file looks like below:
 ### Install from GitHub URL
 PoseDetectionBarracuda can be installed by adding below URL on the Unity Package Manager's window.
 ```
-https://github.com/creativeIKEP/PoseDetectionBarracuda.git?path=Packages/PoseDetectionBarracuda#v1.0.0
+https://github.com/creativeIKEP/PoseDetectionBarracuda.git?path=Packages/PoseDetectionBarracuda#v1.0.1
 ```
 
 ## Demo Image

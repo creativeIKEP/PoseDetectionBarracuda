@@ -7,7 +7,6 @@
 
     #define PI 3.14159265359
 
-    uint _upperBodyOnly;
     StructuredBuffer<PoseDetection> _pds;
     
     float2x2 rot2D(float angle)
@@ -42,8 +41,8 @@
         float2 hip = pd.keyPoints[0];
         float2 shoulder = pd.keyPoints[2];
 
-        float2 center = _upperBodyOnly ? shoulder : hip;
-        float2 roi = _upperBodyOnly ? pd.keyPoints[3] : pd.keyPoints[1];
+        float2 center = hip;
+        float2 roi = pd.keyPoints[1];
 
         float sizeX = abs(roi.x - center.x);
         float sizeY = abs(roi.y - center.y);
