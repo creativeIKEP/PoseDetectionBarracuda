@@ -21,7 +21,7 @@ To the `scopedRegistries` section:
 ```
 To the `dependencies` section:
 ```
-"jp.ikep.mediapipe.posedetection": "1.0.0"
+"jp.ikep.mediapipe.posedetection": "1.0.1"
 ```
 Finally, the manifest file looks like below:
 ```
@@ -34,15 +34,16 @@ Finally, the manifest file looks like below:
         }
     ],
     "dependencies": {
-        "jp.ikep.mediapipe.posedetection": "1.0.0",
+        "jp.ikep.mediapipe.posedetection": "1.0.1",
         ...
     }
 }
 ```
 
+### Install from GitHub URL
 PoseDetectionBarracuda can be installed by adding below URL on the Unity Package Manager's window.
 ```
-https://github.com/creativeIKEP/PoseDetectionBarracuda.git?path=Packages/PoseDetectionBarracuda#v1.0.0
+https://github.com/creativeIKEP/PoseDetectionBarracuda.git?path=Packages/PoseDetectionBarracuda#v1.0.1
 ```
 
 ## Demo Image
