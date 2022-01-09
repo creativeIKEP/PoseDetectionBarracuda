@@ -6,7 +6,6 @@ public class PoseVisuallizer : MonoBehaviour
     [SerializeField] WebCamInput webCamInput;
     [SerializeField] Shader shader;
     [SerializeField] PoseDetectionResource poseDetectionResource;
-    [SerializeField] bool isUpperBodyOnly;
 
     Material material;
     PoseDetecter detecter;
@@ -33,8 +32,6 @@ public class PoseVisuallizer : MonoBehaviour
     void OnRenderObject(){
         // Get predicted pose detection result.
         material.SetBuffer("_pds", detecter.outputBuffer);
-        // Select mode, "upper body only" or "full body".
-        material.SetInt("_upperBodyOnly", (isUpperBodyOnly ? 1 : 0));
 
         // Set pose detection count as vertex shader instance count.
         ComputeBuffer.CopyCount(detecter.outputBuffer, boxDrawArgs, sizeof(uint));
